@@ -1,0 +1,138 @@
+\chapter{Introduction}
+
+Over the past years, deep learning technology has rapidly advanced to normalize using \gls{dnn} as one of the key techniques in the area of computer vision. DNNs have achieved state-of-the-art performance, outperforming previous traditional techniques and even humans, on tasks like image classification \cite{deng2009imagenet}, object detection \cite{redmon2016you}, image segmentation \cite{ronneberger2015u}, and behavior recognition \cite{carreira2017quo}. AI has made a paradigm shift in terms of "perception" to "cognition" predominantly aided by recent advances in computer vision through \gls{cnn} and attention-based architectures(e.g., Transformer).
+
+As the scope of space activities has expanded, the necessity of developing methodologies to transfer visual intelligence capabilities to a range of space platforms has emerged as a new area of research interest. This includes orbital spacecraft, interstellar probes, and deep space exploration vehicles. Future space missions, especially highly automated missions such as orbital debris identification, autonomous navigation and obstacle avoidance, unknown terrain identification and surveying, and astronaut assistance operations will be entirely dependent on the capabilities of computer vision systems for real-time processing and real-time judgment \cite{Zhang2022}. 
+
+
+
+Indeed, several actual or planned space missions have incorporated visual recognition modules into their core subsystems, which is an early stage in the exploration of deploying space AI systems. Examples include:
+
+\begin{itemize}
+
+  \item \textbf{The NASA Perseverance Mars Rover}: equipped with multiple cameras and computer vision systems for mapping the Martian surface, identifying rocks, steering and avoiding obstacles, etc. Its autonomous navigation system processes ground information through visual recognition to achieve path planning, markedly decreasing the frequency of ground intervention. \cite{NASAPerseverance}
+
+   
+
+  \item \textbf{The ESA Hera asteroid mission}: planned to travel to the Didymos binary asteroid system, the mission relies on a visual module to recognize asteroid surface morphology and perform 3D modeling, providing a key reference for future planetary defense technology. \cite{ESAHera}
+
+   
+
+  \item \textbf{NASA OSIRIS-REx asteroid mission}: During the approach to the asteroid Bennu, image recognition was used to select a suitable sampling area, and the trajectory was adjusted in real-time to achieve precision guidance. This is a typical example of early visual navigation used for sampling control. \cite{Lauretta2017}
+
+   
+
+  \item The Chinese Tianwen-1 Mars exploration mission: Visual navigation and terrain recognition systems are widely used during the landing and patrol phases of Mars to assist with landing site selection and path planning, demonstrating highly integrated visual reasoning capabilities. \cite{Tianwen1}
+
+   
+
+  \item NASA's Artemis lunar mission and Lunar Gateway: Computer vision systems are planned to be deployed for object detection inside/outside the mission module, robot collaboration, and system maintenance assistance, which are key components of intelligent vision in deep space manned missions. \cite{NASAArtemis}
+
+\end{itemize}
+
+
+
+According to the European Space Agency \cite{ESAHera}and the US National Aeronautics and Space Administration (NASA) in their white paper “Artificial Intelligence for Space Missions”, “The local reasoning capabilities of the AI systems in space will be key to enabling a revolution in the evolution of space missions from automation to intelligence.” \cite{NASA_AI_Space} . 
+
+
+
+Nonetheless, deploying highly advanced DNN models in space missions are subject to many limitations. First, DNN models tend to be large and computationally expensive. As an example, ResNet-50 is a classic deep \gls{cnn} which was designed with a residual connection mechanism to effectively alleviate or mitigate the problem of gradient vanishing in deep networks \cite{glorot2010understanding}. This particular network possesses 50 hierarchical structures that include convolutional layers, batch normalization layers, activation functions, and residual blocks. With regard to these 50 structures, ResNet-50 has approximately 25.6 million parameters, and it requires about 4.1 billion \gls{flops} per inference \cite{he2016deep}. ResNet-50 is extensively used for many image classification and detection tasks and demonstrates remarkable efficacy on the ImageNet dataset.
+
+
+
+Another sophisticated architecture is the self-attention-based \textbf{\gls{vit}} \cite{dosovitskiy2020image}. In contrast to the conventional image recognition models based on \gls{cnn}, \gls{vit} splits an image into equal-sized patches (or tokens) and then treats them as a sequence input into the Transformer encoder. As with the popular \textbf{\gls{vit}-Base} model mentioned earlier, there are 12 Transformer encoder layers, and each layer has 12 attention heads, allowing the model parameters to reach numbers upwards of \textbf{86 million}. Each inference requires roughly about \textbf{17.6 billion \gls{flops}} per the model’s architecture, presenting a substantially higher requirement for memory bandwidth and computing resources than the ResNet series. Despite this high computational overhead, the architectures are successfully run on terrestrial platforms with the use of accelerator devices that provide good performance, such as the NVIDIA V100, A100 GPU, or Apple M series chip; however, when deploying onto space platforms, the architectures face severe real-world constraints. Space vehicle processors require robust radiation tolerance and high reliability, often sacrificing performance in return. Many of the current generation mainstream radiation tolerant processors installed on the space vehicle include
+
+
+
+\begin{itemize}
+
+  \item \textbf{RAD750} (BAE Systems): based on the PowerPC 750 architecture, with a clock speed of only 133~MHz, 128~MB~SDRAM, and peak computing performance of about \textbf{266 \gls{mips}}, widely used in NASA missions such as Curiosity and Perseverance \cite{rad750};
+
+  \item \textbf{LEON3/LEON4} (Cobham Gaisler): based on the SPARC architecture, operating frequency about 100-250~MHz, peak performance of hundreds of~MIPS, used in several ESA deep space missions \cite{leon34};
+
+  \item \textbf{GR740}: a quad-core LEON4FT chip developed by the European Space Agency, with a clock speed of 250~MHz, support for 1~GB DDR3, and a peak performance of about 1~GFLOPs \cite{gr740}.
+
+\end{itemize}
+
+
+
+In contrast, AI accelerators used on the ground have computing power that is thousands of times greater. As shown in Table~\ref{tab:gpu_comparison}, the NVIDIA V100, NVIDIA A100, and Apple M1/M2 series have distinctive performance characteristics.
+
+\begin{table}[H]
+  \centering
+  \caption{Comparison between Ground-based GPUs and Space Processors}
+  \label{tab:gpu_comparison}
+  \renewcommand{\arraystretch}{1.2}  % 调整行距
+  \setlength{\tabcolsep}{4pt}        % 调整列间距
+  \begin{tabularx}{1\textwidth}{%
+      >{\raggedright\arraybackslash}p{2.5cm}  % Processor
+      >{\raggedright\arraybackslash}p{1.5cm}  % Platform
+      >{\raggedright\arraybackslash}X          % Key Specifications
+  }
+    \toprule
+    \textbf{Processor} & \textbf{Platform} & \textbf{Key Specifications} \\
+    \midrule
+    GR740 
+      & Space 
+      & Quad-core LEON4FT, 250~MHz clock, 1~GB DDR3, peak performance of ~1~GFLOPS. \\
+    \midrule
+    NVIDIA V100 
+      & Ground 
+      & Volta architecture, 5,120 CUDA cores, 4,096 Tensor cores, 15.7~TFLOPS (FP32), 32~GB HBM2. \\
+    \midrule
+    NVIDIA A100 
+      & Ground 
+      & Ampere architecture, up to 19.5~TFLOPS (FP16) or 312~TFLOPS (Tensor Core BF16), supports 40~GB/80~GB HBM2e. \\
+    \midrule
+    Apple M1/M2 Series 
+      & Ground 
+      & Integrated Neural Engine, e.g., the M2 Neural Engine executes up to 15.8 billion operations per second (TOPS). \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+
+
+
+
+
+In comparing magnitude, the most powerful space processors currently define computing just above 1 GFLOPS, such as the GR740, whereas GPUs on the ground can easily achieve between 10 and 100+ TFLOPS. This means the millions of operations required by traditional ground-based deep learning models during the inference will still be executed over a period of anywhere between tens and hundreds of seconds on the space processor, and no longer adequate for real-time processing on these platforms. Furthermore, there are substantial, specific limitations of space platforms in terms of power, heat dissipation, reliability, and storage bandwidth, which drive the need for lightweight, low-power, and robust deep learning models. 
+
+
+
+More importantly, the radiation conditions in space will create a series of reliability risks. Solar storms, galactic cosmic rays, and high-energy particle streams will constantly bombard electronic systems, creating issues such as \gls{seu} and \gls{sel}. For \gls{dnn}, these upsets can affect the weight parameters, values for input activations, or even to the connections between the neurons, making errors on inference the same experience without alarm for the hardware level failure detection.
+
+
+
+Experiments and simulations in realistic radiation environments suggest that the chance of a bit‐flip occurring in a floating point weight of 16 bits is about 1 in 10,000 per hour. \cite{venables2003enhancing}
+
+
+Accordingly, to the point that, a model with tens of millions of parameters can accrue several random damages in a matter of hours; and since \gls{dnn} models are highly nonlinear and can amplification minor perturbations, this “silent data corruption” can potentially result serious misalignment in the inference stage. An example would be in the way the \gls{dnn} would associate orbital debris with "Orbital gravel" haul, instead of "mission equipment" which would impact the robotic arm underpinning the orbital grasping or orbital avoidance planning with the end user resulting in a catastrophic mission failure.
+
+
+
+To address the above challenges, academia and industry have proposed many optimization methods to reduce the operational complexity and sensitivity of \gls{dnn} models. For example:
+
+\begin{itemize}
+
+  \item \textbf{Model quantization (Quantization)}:Compress 32-bit floating-point representations to 8-bit or even 4-bit integers significantly reduces model storage and multiply-add operation costs \cite{howard2017mobilenet}. Studies have shown that 8-bit \gls{ptq} can reduce the amount of computation by about 4 times without significantly affecting accuracy.
+
+  \item \textbf{Pruning}: Sparsity the model by pruning redundant neurons, convolutional kernels, or attention heads, thereby reducing the complexity of the computational graph \cite{raina2009large}.
+
+  \item \textbf{Knowledge Distillation}: Training a small model to imitate the output of a large model to improve the performance of a compact model.
+
+  \item \textbf{Neural Architecture Search}: uses a search algorithm to find the network structure that performs best on a particular piece of hardware.
+
+\end{itemize}
+
+
+
+Although these methods are widely used on mobile devices and edge AI devices (such as smartphones and embedded terminals), most of them ignore the impact of the radiation environment on the model \cite{Souvatzoglou2024}.
+Modern models of \gls{dnn} often show an upper bound on tradeoff between model size or number of \gls{flops} and robustness to fault. The motivation for this study is that larger \gls{dnn} are naturally more redundant and could potentially be more robust to soft errors such as \gls{seu} compared with smaller, pruned models. In constrained situations, like space, where computational limits and radiation-induced errors are performance barriers, understanding the trade-off will help familiarize engineers with the underlying mechanisms and strategies that can be adopted.
+The primary research question for this study is as follows: To what extent does model pruning impact the robustness of neural networks against \gls{seu}? The current study will specifically analyze how structured pruned models that impact \gls{flops} impacts classification accuracy under deterministic fault injection. The objective of the current study is to assess whether lightweight but high-capacity networks can be robust enough to be deployed for fault tolerant, application-specific uses in space-borne vision systems.
+
+
+
+In summary, this study integrates three key techniques: quantitative analysis, structured pruning, and dynamic reconstruction. By simulating errors generated in the model under high-radiation conditions in the universe, it clarifies the relationship between the model's \gls{flops} and accuracy after error injection. This research not only fills a critical gap in the field of reliability for space artificial intelligence models but also provides essential technical support for high-risk tasks such as deep space exploration, lunar base construction, and autonomous orbital visual navigation.
+
+The rest of the remaining chapters structured as follows: Chapter \ref{chap:design} defines some on the principles of constructing and training neural networks, in addition to regularization (dropout) techniques and to explain the reasoning behind structured pruning to test spacecraft constraints. Chapter \ref{chap:imp} contains the structured pruning, quantization, and dynamic reconstruction, on both the VGG and CCDF\_MNIST models and establishes a methodical model error injection. Chapter \ref{chap:evaluation} provides experimental results and analysis between different pruning levels (\gls{flops} reduction) with classification accuracy on bit-flipping injection, and their relevant fault-tolerance curves. Chapter \ref{chap:discussion} discusses the relationship of the research results to the existing work and highlights the weaknesses. Finally, chapter \ref{chap:conclusion} summarizes the key contributions of this research, brings together the research results, and describes potential directions for future work.

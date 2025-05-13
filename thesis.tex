@@ -1,0 +1,223 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                      %
+% LaTeX, FIIW thesis template                                          %
+% 19/12/2023 v1.3                                                      %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[11pt,a4paper]{report}
+% If you want to print a recto-verso version, use the documentclass below
+%\documentclass[11pt,a4paper,twoside,openright]{report}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LaTeX packages                                                                                   %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 页边距设置
+\usepackage[a4paper,left=2.5cm, right=2.5cm, top=3.5cm, bottom=3.5cm]{geometry}
+
+% 语言与输入
+\usepackage[utf8]{inputenc}         % UTF-8 编码
+%\usepackage{babel}                  % 多语言支持（根据需要添加）
+
+% 图像
+\usepackage{graphicx}
+\graphicspath{{./figs/}}
+
+% 数学相关
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{siunitx}
+\sisetup{detect-all}
+
+% 表格相关
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{longtable}
+
+% 代码高亮与显示
+\usepackage{listings}
+\lstset{
+    breaklines=true,        
+    breakatwhitespace=true, 
+    basicstyle=\ttfamily\small, 
+    columns=fullflexible
+}
+\usepackage{verbatim}
+\usepackage{minted}
+\usemintedstyle{borland}
+
+% 算法环境
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+
+% 超链接与网址
+\usepackage{hyperref}
+\usepackage{url}
+\hypersetup{
+    colorlinks=true,
+    breaklinks=true,
+    urlcolor=blue,
+    linkcolor=black,
+    citecolor=black
+}
+\def\UrlBreaks{\do\/\do-}
+\urlstyle{same}
+
+% PDF 插入
+\usepackage[final]{pdfpages}
+
+% 图片子图
+\usepackage{subfig}
+\usepackage{float} % 提供 H 选项
+
+% 图注
+\usepackage[labelfont=bf]{caption}
+
+% biblatex: citations from 'references.bib'
+\usepackage[backend=biber, style=ieee, citestyle=numeric-comp, maxnames=99]{biblatex}
+\addbibresource{references.bib}
+\AtBeginBibliography{\footnotesize}
+% 符号与缩略语表
+\usepackage[acronym,toc]{glossaries}
+\renewcommand{\glossarysection}[2][]{} % 禁用 glossary 标题
+
+
+% 符号表样式
+\newglossary*{symbols}{}
+\glsaddkey{unit}{\glsentrytext{\glslabel}}{\glsentryunit}{\GLsentryunit}{\glsunit}{\Glsunit}{\GLSunit}
+\newglossarystyle{symbolsStyle}{%
+    \setglossarystyle{long3col}
+    \renewenvironment{theglossary}{%
+        \renewcommand*{\arraystretch}{1}%
+        \begin{longtable}{p{0.1\textwidth}p{0.8\textwidth}>{\centering\arraybackslash}p{0.1\textwidth}}%
+    }{%
+        \end{longtable}%
+    }
+    \renewcommand*{\glossaryheader}{\endhead}
+    \renewcommand*{\glossentry}[2]{%
+        \glstarget{##1}{\glossentryname{##1}}%
+        & \glossentrydesc{##1}%
+        & [\glsunit{##1}] \tabularnewline
+    }
+}
+\newglossarystyle{acronymsStyle}{%
+    \setglossarystyle{long3col}
+    \renewenvironment{theglossary}{%
+        \renewcommand*{\arraystretch}{0.5}%
+        \begin{longtable}{p{0.1\textwidth}p{0.9\textwidth}>{\centering\arraybackslash}p{0\textwidth}}%
+    }{%
+        \end{longtable}%
+    }
+    \renewcommand*{\glossaryheader}{\endhead}
+    \renewcommand*{\glossentry}[2]{%
+        \glstarget{##1}{\glossentryname{##1}}%
+        & \glossentrydesc{##1}%
+        & \tabularnewline
+    }
+}
+\makeglossaries
+% TikZ 绘图
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta}
+
+% mhchem: Chemical formulas (e.g.: \ce{CO2})
+\usepackage[version=4]{mhchem}
+
+% longtable, tabularx, booktabs, array: for improved tables
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{array}
+
+% packages to match word template fonts as closely as possible
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{courier}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIIW template setup                                                                              %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% NOTE: doclang only sets the language of document titles AFTER the title/copyright pages
+\def\doclang{english} % Eng: use 'english'
+\usepackage{fiiw}
+%\usepackage{natbib}						% used for cites from the bib file in your text
+\usepackage{listings}             		% used for displaying source code (java, c, matlab,...)
+\usepackage{verbatim}					% used for inline formatting of source code, terminal commands, 
+\usepackage{hyperref}					% include hyperlinks in the resulting PDF
+\usepackage{url}						% add url's with \url{http://}
+\usepackage{subfig}
+\usepackage{amsmath}					% extend math features
+\usepackage[final]{pdfpages}            % include pdf's e.g.: a paper or a poster
+\usepackage{float}                      % adds [H] to figure env. Puts a figure where you want it e.g. \begin{figure}[H]
+\usepackage{longtable}					% used for tables that strech over muliple pages
+
+%\usepackage[toc, acronyms]{glossaries}	% used by the list of symbols
+
+% voorwoord (Eng: preface)
+\acknowledgementspagetrue
+\acknowledgements{voorwoord} % uses 'voorwoord.tex' for the preface
+% abstract
+\abstractpagetrue
+\abstract{abstract.tex}
+% dutch abstract (samenvatting)
+\abstractnlpagetrue
+\abstractnl{samenvatting.tex}
+% lijst van figuren (Eng: list of figures)
+\listoffigurespagetrue
+% lijst van tabellen (Eng: list of tables)
+\listoftablespagetrue
+% lijst van symbolen (Eng: list of symbols)
+%\listofsymbolspagetrue
+%\listofsymbols{symbolen.tex}
+% lijst van afkortingen (Eng: list of abbreviations)
+\listofacronymspagetrue
+\listofacronyms{afkortingen.tex}
+
+% education, specialisation
+\opleiding{Elektronica-ICT} % Eng: Electronics-ICT
+% campuses: denayer, geel, gent, groept, brugge (denayereng, geeleng, ghenteng, groupteng, brugeseng)
+\campus{groupteng}
+%\embargo{01-01-1970}
+
+% thesis title, author, promotor(s), etc.
+\title{Neural Network Compression for Vision Applications in Space}
+\subtitle{}
+\academicyear{2024 - 2025}
+\forenameA{Zhengchi}
+\surnameA{Wu}
+% leave second author (B) open if unused
+\forenameB{}
+\surnameB{}
+% Eng: Supervisor(s), Co-supervisor(s)
+\promotorA[Promotor]{\mbox{Prof. Dr Ing Peter Karsmakers}}
+\promotorB[Co-promotor]{Ing Toon Vinck\anotherPromotor %Mijn 2e co-promotor\anotherPromotor Mijn bedrijfspromotor
+} % co-promotor, company promotor, etc. names
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Actual LaTeX document                                                                            %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\selectlanguage{\doclang}
+\preface%
+\clearpage
+
+\input{chapters/01-introduction}
+\input{chapters/02-design}
+\input{chapters/03-implementation}
+\input{chapters/04-evaluation}
+\input{chapters/05-discussion}
+\input{chapters/06-conclusion}
+
+\printbibliography
+\addcontentsline{toc}{chapter}{\bibname}
+
+% add extra appendices here
+\appendix
+
+
+\end{document}

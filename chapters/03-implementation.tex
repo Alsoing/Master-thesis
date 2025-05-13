@@ -1,0 +1,332 @@
+\chapter{Implementation/Methods}
+\label{chap:imp}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Overview of Experimental Design}
+This chapter describes the overall experimental methodology taken to investigate the \gls{flops} versus robustness trade-off across radiation-induced \gls{seu}. The study was undertaken on two typical systems: a large-scale VGG-16 model for the CIFAR-10 dataset, and a small-scale CCDF\_MNIST model on MNIST.
+
+The evaluation pipeline comprises two main phases:
+\begin{enumerate}
+\item \textbf{Clean Accuracy Evaluation:} Using iterative structured pruning based on filter L1-norm, we describe how classification accuracy changes during pruning iterations.
+\item \textbf{Fault Robustness Evaluation:} Using the \gls{qseu} framework we inject a proportional number of bit-flip faults into the quantized model and examine how accuracy under \gls{seu} degrades across the same iterations.
+\end{enumerate}
+
+This two-part protocol allows comparative evaluation of the \gls{flops}–Accuracy–Robustness relationship across compression levels and models.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Phase 1: Clean Accuracy Under Iterative Pruning}
+
+
+
+    \subsection{VGG-16 on CIFAR-10}
+        \subsubsection{Experimental Setup and Data Preprocessing}
+            Experiments were conducted on an NVIDIA GPU-based server using Python and PyTorch. The CIFAR-10 dataset is used as the benchmark. Data preprocessing includes:
+            \begin{itemize}
+                \item \textbf{Random Horizontal Flip} to increase data diversity.
+                \item \textbf{Random Crop} with padding for sample variation.
+                \item \textbf{Normalization} to zero mean and unit variance.
+            \end{itemize}
+            
+            The code snippet below demonstrates the data loading and preprocessing steps:
+            \begin{lstlisting}
+            [caption={Data Loading and Preprocessing for CIFAR-10}, language=Python]
+            transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
+            ])
+            
+            trainset = torchvision.datasets.CIFAR10(
+                root='./data', train=True, download=True, transform=transform
+            )
+            trainloader = DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
+            
+            testset = torchvision.datasets.CIFAR10(
+                root='./data', train=False, download=True, transform=transform
+            )
+            testloader = DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
+            \end{lstlisting}
+        
+        \subsubsection{Model Architecture}
+            We adopt an improved VGG network as our baseline model, which comprises several convolutional layers (with $3 \times 3$ kernels), batch normalization, ReLU activation, pooling layers for down-sampling, and fully connected layers for classification. This architecture facilitates effective feature extraction and is well-suited for subsequent pruning operations.
+            
+            \begin{lstlisting}[caption={VGG Model Definition}, language=Python]
+            class VGG(nn.Module):
+                def __init__(self):
+                    super(VGG, self).__init__()
+                    
+                    def conv_block(in_channels, out_channels, kernel_size=3, padding=1):
+                        return nn.Sequential(
+                            nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding),
+                            nn.BatchNorm2d(out_channels),
+                            nn.ReLU(inplace=True)
+                        )
+                    
+                    self.features = nn.Sequential(
+                        conv_block(3, 64),
+                        conv_block(64, 64),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        
+                        conv_block(64, 128),
+                        conv_block(128, 128),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        
+                        conv_block(128, 256),
+                        conv_block(256, 256),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        
+                        conv_block(256, 512),
+                        conv_block(512, 512),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        
+                        conv_block(512, 512),
+                        conv_block(512, 512),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        nn.AdaptiveAvgPool2d((1, 1))
+                    )
+                    
+                    self.classifier = nn.Sequential(
+                        nn.Linear(512, 512),
+                        nn.ReLU(inplace=True),
+                        nn.Dropout(0.5),
+                        nn.Linear(512, 512),
+                        nn.ReLU(inplace=True),
+                        nn.Dropout(0.5),
+                        nn.Linear(512, 10)
+                    )
+            
+                def forward(self, x):
+                    x = self.features(x)
+                    x = x.view(x.size(0), -1)
+                    x = self.classifier(x)
+                    return x
+            \end{lstlisting}
+        
+        \subsubsection{Pruning Strategy Implementation}
+            To increase computational efficiency in resource-limited and radiation-affected settings, we perform structured pruning by removing convolutional filters with low importance scores with a \textbf{layer-wise, iterative} pruning process, as follows:
+            
+            \begin{enumerate}
+            \item \textbf{Filter Importance Evaluation:} 
+            For every convolutional layer \( L\), we calculate the L1-norm for each filter (i.e., for each output channel) to assess its importance.:
+            \[
+            \text{L1\_norm}_i = \sum_{j,k,l} |W_{i,j,k,l}|
+            \]
+            where \(W_{i,j,k,l}\) are the weights associated with the \(i\)-th output channel across all input channels \(j\) and spatial positions \((k,l)\). A lower L1-norm indicates less contribution to the overall output and thus lower importance.
+            
+            \item \textbf{Per-Layer Filter Selection (Local Pruning):} 
+            In each layer, we sort all filters by their corresponding L1-norms, in ascending order. We pick a fixed percentage \( r \in [0, 1] \) (the pruning ratio of ) of lowest-scoring filters for pruning, so the pruning ratio of every layer is same. We always ensure that there is at least one filter per layer:
+            \[
+            \text{num\_keep} = \max(1, \lfloor (1 - r) \cdot \text{num\_filters} \rfloor)
+            \]
+            
+            \item \textbf{Applying the Pruning Mask:} 
+            We then build a binary mask \( M\) such that \( M_i = 1\) if we kept the \(i\)-th filter and \( M_i = 0\) otherwise. We will then expand it spatially and across channels and apply it using PyTorch’s \texttt{prune.custom\_from\_mask} API. After we mask the filters, we finalize the pruning with \texttt{prune.remove}, which will remove the pruning reparameterization and leave only the weights we decided to kept.
+            
+            \item \textbf{Iterative Ratio Scheduling:} 
+            We increase the pruning ratio \( r\) over several iterations to gain more compression without too severely impacting performance. For iteration  \( t \), pruning ratio could potentially be represented as:
+            \[
+            r_t = \min \left( r_{\text{base}} \cdot (1 + 0.1 \cdot t),\ r_{\text{max}} \right)
+            \]
+            where \( r_{\text{base}} \) is the initial ratio and \( r_{\text{max}} \) is an upper bound (e.g., 50\%).
+            \end{enumerate}
+            
+            \noindent
+            \textbf{Note:} This method is performing \textit{local pruning}—i.e., each layer is pruned independently according to its own filter statistics, rather than applying global importance ranking across layers.
+        
+        
+        \subsubsection{Model Reconstruction and Fine-Tuning}
+            After pruning, the model’s computational graph is restructured to create a dense network configuration. The reconstruction involves:
+            \begin{enumerate}
+                \item Extracting pruning masks from each convolutional layer.
+                \item Rebuilding the convolutional layers with a reduced number of filters.
+                \item Adjusting the fully connected layers accordingly.
+            \end{enumerate}
+            
+            Fine-tuning is then performed using the SGD optimizer and a Cosine Annealing learning rate scheduler to recover any lost performance:
+            \begin{lstlisting}[caption={Model Fine-Tuning Code Snippet}, language=Python]
+            optimizer = optim.SGD(current_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=3, eta_min=1e-6)
+            train_model(current_model, trainloader, testloader, criterion, optimizer, scheduler, epochs=5)
+            \end{lstlisting}
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+    
+    
+    
+    \subsection{CCDF\_MNIST on MNIST}
+        \subsubsection{Experimental Setup and Data Preprocessing for MNIST}
+        For MNIST, the data is preprocessed using a simpler transformation:
+        \begin{lstlisting}[caption={Data Loading and Preprocessing for MNIST}, language=Python]
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])
+        
+        trainset = torchvision.datasets.MNIST(
+            root='./data', train=True, download=True, transform=transform
+        )
+        trainloader = DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
+        
+        testset = torchvision.datasets.MNIST(
+            root='./data', train=False, download=True, transform=transform
+        )
+        testloader = DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
+        \end{lstlisting}
+    
+        \subsubsection{Model Architecture: CCDF\_MNIST}
+        The \texttt{CCDF\_MNIST} model is defined as follows. It uses two convolutional layers with batch normalization, ReLU activation, max pooling, and dropout, followed by global average pooling and a fully connected layer:
+        \begin{lstlisting}[caption={CCDF\_MNIST Model Definition}, language=Python]
+        class CCDF_MNIST(nn.Module):
+            def __init__(self, num_neurons: int):
+                super(CCDF_MNIST, self).__init__()
+                self.relu = nn.ReLU()
+                self.conv1 = nn.Conv2d(1, 32, 3, 1)
+                self.bn1 = nn.BatchNorm2d(32)
+                self.max_pool2d1 = nn.MaxPool2d(3)
+                self.conv2 = nn.Conv2d(32, 64, 3, 1)
+                self.bn2 = nn.BatchNorm2d(64)
+                self.max_pool2d2 = nn.MaxPool2d(3)
+                self.dropout1 = nn.Dropout(0.25)
+                self.fc1 = nn.Linear(64, num_neurons)
+                self.log_softmax = nn.LogSoftmax(dim=1)
+                % Additional attributes for fault injection and quantization analysis
+                self.el = []
+                self.elmax = []
+                self.elnotmax = []
+                self.labels = torch.tensor([])
+        
+            def forward(self, x):
+                x = self.conv1(x)
+                x = self.bn1(x)
+                x = self.relu(x)
+                x = self.max_pool2d1(x)
+                x = self.conv2(x)
+                x = self.bn2(x)
+                x = self.relu(x)
+                x = self.max_pool2d2(x)
+                x = self.dropout1(x)
+                % Global average pooling over spatial dimensions
+                x = torch.mean(x, dim=[2, 3])
+                x = self.fc1(x)
+                x = self.log_softmax(x)
+                return x
+        \end{lstlisting}
+    
+        \subsubsection{Pruning and Model Reconstruction for CCDF\_MNIST}
+        Similar to the VGG-based implementation, we prune the \texttt{CCDF\_MNIST} model using the L1-norm of the convolutional filters. A tailored function, \texttt{rebuild\_model\_ccdf}, reconstructs the model based on the pruning masks:
+        \begin{lstlisting}[caption={Model Reconstruction for CCDF\_MNIST}, language=Python]
+        def rebuild_model_ccdf(original_model):
+            mask_conv1, mask_conv2 = get_pruned_masks_ccdf(original_model)
+            new_conv1_out = int(mask_conv1.sum().item())
+            new_conv2_out = int(mask_conv2.sum().item())
+            print(f"Rebuilding model: conv1 channels from {original_model.conv1.out_channels} to {new_conv1_out}, "
+                  f"conv2 channels from {original_model.conv2.out_channels} to {new_conv2_out}")
+            new_model = CCDF_MNIST(num_neurons=10).to(device)
+            new_model.conv1 = nn.Conv2d(1, new_conv1_out, kernel_size=3, stride=1, bias=True)
+            new_model.bn1 = nn.BatchNorm2d(new_conv1_out)
+            new_model.conv2 = nn.Conv2d(new_conv1_out, new_conv2_out, kernel_size=3, stride=1, bias=True)
+            new_model.bn2 = nn.BatchNorm2d(new_conv2_out)
+            new_model.fc1 = nn.Linear(new_conv2_out, 10)
+            % Code for copying weights and biases is included here.
+            return new_model
+        \end{lstlisting}
+    
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Phase 2: Fault Robustness Evaluation}
+    \subsection{\gls{qseu} Quantization and Fault Injection Testing}
+    
+        The \gls{qseu} framework is employed for model robustness measuring under radiation-like conditions. \gls{qseu} takes a quantized neural network and performs bit-level fault injection. The complete process is as follows:
+        
+        \begin{enumerate}
+        \item \textbf{Model Quantization and Structure Parsing:} 
+        We pass our original (and pruned if necessary) model into the \texttt{qseu\_factory} function with config profiles \texttt{xlr\_config="default"} and \texttt{c\_config="fixed"} which will convert our model to quantized form. During this conversion we run a forward pass with a sample input to trigger the module hooks, which will record the input/output dimensions and bit-widths of each module for quantization.
+        
+        \item \textbf{Quantization Calibration:} 
+        Next, the quantized model performs multiple forward passes over the (frozen) test dataset while collecting activation ranges, and calibrating the quantization scales with quantization observation turned on \texttt{force\_observe=True}. After calibration is complete we turn off \texttt{force\_observe}, freezing quantization parameters.
+        
+        \item \textbf{Fine-tuning the Quantized Model:} 
+        Before implementing fault injection we fine-tune the quantized model on the training dataset (for 5 epochs) to recover accuracies lost during quantization. This step is essential to making a fair assessment of the impact of faults.
+        
+        \item \textbf{Bit-Flip Fault Injection (Reproducible and Quantified Description):} 
+        To illustrate radiation-induced \gls{seu}, we use bit-level fault injection into the quantized model. We would inject faults using the framework, and do this by having \texttt{qseu\_model.inject\_faults = True} and then indicate a defined number of faults to inject by setting \texttt{qseu\_model.fault\_number = N}. 
+        
+        When we completed our studies we provided explicit action on fault injection budgets that matched the current inference complexity of the model (i.e., \gls{flops}). We did this as an actual injection of \textbf{1 fault for every 10,000 \gls{flops}}; for example, a model with 0.89 million \gls{flops} (i.e., 0.89M) will have exactly 89 faults injected for each forward pass. This ratio results in an audience normalized and reproducible process across a range of model sizes with inherent variability. So, the fault number, $N$, is based on this:
+        \[
+        N = \text{round}\left(\frac{\text{\gls{flops}}}{10{,}000}\right)
+        \]
+        
+        The \gls{qseu} engine simulates \gls{seu} by randomly flipping, across whole weight and activation tensors of quantized layers, a total of $N$ individual bits sampled uniformly at random from eligible locations—where eligible locations are represented by the bits of all eligible quantized model tensors. Flipping a bit is simulated by changing a bit from 0 to 1 or from 1 to 0 in its 8-bit integer representation.
+        
+        It's significant to point that these are \textit{transient} faults and perturb only the active forward pass and are not preserved in the memory of the model after the forward pass ends. Additionally, all faults injections are performed with a fixed random seed to allow reproducibility, and fault injections were independent and did not overlap with or have any bias from prior evaluations. This method revealed a consistent and verifiable fault profile for uniform disturbance testing, appropriate for evaluating robustness in realistic radiation-induced bit error rates.
+        
+        
+        \item \textbf{Evaluation under Fault Conditions:} 
+        Now, with fault injection enabled, we evaluate the classification accuracy for the model on the full test set. The performance degradation (as compared to the non-faulty baseline) will provide with the robustness of the model under fault inducing conditions. The test is repeated with fault numbers upscaled in proportion to the models \gls{flops} so different sizes of models may be fairly compared.
+        \end{enumerate}
+        
+        \noindent
+        \textbf{Implementation Notes:}
+        \begin{itemize}
+        \item The fault injection mechanism is internal to the \gls{qseu} module, which modifies bit-level representations in quantized tensors.
+        \item Faults are injected only during the evaluation phase, ensuring no contamination of training weights.
+        \item All experiments are reproducible by fixing the random seed and maintaining consistent fault injection counts.
+        \end{itemize}
+    
+    
+    
+    
+    
+    \subsection{Fault Injection Testing for VGG-16}
+        After we pruned and quantized the VGG-16 model, we used the \gls{qseu} framework to assess the robustness of the model under "realistic" \gls{seu}-like faults. For each pruning iteration, we determined the current \gls{flops} and determined the number of bit-flips we will inject from:
+        
+        \[
+        N = \text{round}\left(\frac{\text{\gls{flops}}}{10{,}000}\right)
+        \]
+        
+        This led to 22905 faults for the original model (229.05M \gls{flops}), and proportionally less for more aggressively pruned versions. The bit-flips were randomly injected to quantized weights and activations using a fixed random seed to ensure reproducibility.
+        
+        Because the injected faults were transient, they only impacted the current forward pass. We checked the model’s Top-1 accuracy on the CIFAR-10 test set with fault injection enabled and plotted accuracy degradation across pruning iterations. We found that even after 80\% spoiler reduction of \gls{flops}, VGG-16 retained high robustness, going from a faulty accuracy of 91.7\% to 86.6\%.
+
+
+
+
+
+
+    
+    
+    
+    \subsection{Fault Injection Testing for CCDF\_MNIST}
+        The CCDF\_MNIST model was structurally lightweight, without any unnecessary redundancy, which gave it limited fault tolerance, as it was more prone to degradation based on the number of faulty components. The faults were injected using the same \gls{qseu} approach previously. For example, the unpruned model had 0.89M \gls{flops}, therefore there were 89 faults injected per forward pass and at the final pruning level (0.12M \gls{flops}) there were only 12 faults injected.
+    
+        Although the number of faults injected decreases significantly with higher pruning levels, the model had non-trivial robustness loss. Top-1 accuracy through \gls{seu} degraded from iteration 0 of 98.4\% and iteration 4 of 78.0\%. It is evident that pruning can quickly ruin the fault tolerance characteristics of small architectures because there are not as many parallel paths to substitute the changed values.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Summary of Methodology}
+
+The above two-phased approach allows for the fair and standardized assessment of the impacts that structural compression (through pruning) has upon both functional performance and fault resilience of \gls{dnn} under realistic \gls{seu} conditions. By comparing both architectures at the same pruning schedule and fault injection levels, we can derive architecture-independent conclusions on compression-robustness trade-offs.
+
+The results from these experiments are further addressed in Chapter~\ref{chap:evaluation}, were quantitative results are provided, and in Chapter~\ref{chap:discussion}, where the broader implications are considered.
